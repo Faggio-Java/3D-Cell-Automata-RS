@@ -11,22 +11,21 @@ instancing::{
     InstanceMaterialData
 },
 bevy_tasks::TaskPool,
-rand::distributions::Distribution,
+bevy::time::FixedTimestep,
+rand::{thread_rng, Rng, distributions::Distribution},
 };
 
 pub mod instancing;
 
 type CellLocations = [bool; CELL_LOCATIONS_SIZE];
 
-const GAME_SIZE: f32 = 100.;
+const GAME_SIZE: f32 = 50.;
 const CELL_LOCATIONS_SIZE: usize = (GAME_SIZE * GAME_SIZE * GAME_SIZE) as usize;
 const CELL_SIZE: f32 = 1.;
 
 struct GameRule {
     survival: [bool; 27],
     spawn: [bool; 27],
-    color_inner: Color,
-    color_outter: Color,
 }
 
 impl GameRule {
@@ -36,8 +35,6 @@ impl GameRule {
         GameRule {
             survival,
             spawn,
-            color_inner: Color::YELLOW,
-            color_outter: Color::RED,
         }
     }
 
@@ -140,21 +137,24 @@ fn update_cell_locations(
         });
     });
 
-    alive.extend(alive2);
+    alive.extend(&alive2);
 
-    for i in alive {
-        cell_locations[i] = true;
+    for i in &alive {
+        cell_locations[*i] = true;
     }
-    for i in dead {
-        cell_locations[i] = false;
+    for i in &dead {
+        cell_locations[*i] = false;
     }
 }
+
+
 
 fn create_new_cells(
     cell_locations: Res<CellLocations>,
     game_rule: Res<GameRule>,
     mut q_instances: Query<&mut InstanceMaterialData>,
 ) {
+    let mut rng = thread_rng();
     let mut instances = q_instances.get_single_mut().expect("Query returned None");
     let x: Vec<InstanceData> = cell_locations
         .iter()
@@ -164,20 +164,21 @@ fn create_new_cells(
             let loc = convert_index_to_loc(index);
             let distance = loc.0.abs().max(loc.1.abs()).max(loc.2.abs()) / (GAME_SIZE / 2.);
             let r =
-                (1. - distance) * game_rule.color_inner.r() + distance * game_rule.color_outter.r();
+                (1. - distance) * rng.gen::<f32>() + distance * rng.gen::<f32>();
             let g =
-                (1. - distance) * game_rule.color_inner.g() + distance * game_rule.color_outter.g();
+                (1. - distance) * rng.gen::<f32>() + distance * rng.gen::<f32>();
             let b =
-                (1. - distance) * game_rule.color_inner.b() + distance * game_rule.color_outter.b();
+                (1. - distance) * rng.gen::<f32>() + distance * rng.gen::<f32>();
             InstanceData {
                 position: Vec3::new(loc.0, loc.1, loc.2),
                 scale: 1.,
-                color: [r, g, b, 1.],
+                color: [r,g,b,1.0],
             }
         })
         .collect();
     *instances = InstanceMaterialData(x);
 }
+
 
 fn create_random_spawn_points(
     points: i32,
